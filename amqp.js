@@ -9,7 +9,7 @@ var events = require('events'),
     AMQPTypes = require('./constants').AMQPTypes,
     Indicators = require('./constants').Indicators,
     FrameType = require('./constants').FrameType;
-    
+
 function mixin () {
   // copy reference to target object
   var target = arguments[0] || {}, i = 1, length = arguments.length, deep = false, source;
@@ -93,18 +93,18 @@ var classes = {};
     classes[classInfo.index] = classInfo;
     for (var j = 0; j < classInfo.methods.length; j++) {
       var methodInfo = classInfo.methods[j];
-      
+
       var name = classInfo.name
         + methodInfo.name[0].toUpperCase()
         + methodInfo.name.slice(1);
       //debug(name);
-      
+
       var method = { name: name
                      , fields: methodInfo.fields
                      , methodIndex: methodInfo.index
                      , classIndex: classInfo.index
                    };
-      
+
       if (!methodTable[classInfo.index]) methodTable[classInfo.index] = {};
       methodTable[classInfo.index][methodInfo.index] = method;
       methods[name] = method;
@@ -485,7 +485,7 @@ function serializeFloat(b, size, value, bigEndian) {
     for (var i = 0; i < x.length; ++i)
       b[b.used++] = x[i];
     break;
-  
+
   case 8:
     var x = jp.Pack('d', [value]);
     for (var i = 0; i < x.length; ++i)
@@ -597,9 +597,9 @@ function isBigInt(value) {
   return value > 0xffffffff;
 }
 
-function getCode(dec) { 
+function getCode(dec) {
   var hexArray = "0123456789ABCDEF".split('');
-  
+
   var code1 = Math.floor(dec / 16);
   var code2 = dec - code1 * 16;
   return hexArray[code2];
@@ -1340,6 +1340,8 @@ Channel.prototype._tasksFlush = function () {
       this._tasks.splice(i, 1);
       i = i-1;
     }
+
+    if (this.state !== 'open') return;
   }
 };
 
@@ -1369,7 +1371,7 @@ Channel.prototype._onChannelMethod = function(channel, method, args) {
     }
 }
 
-Channel.prototype.close = function() { 
+Channel.prototype.close = function() {
   this.state = 'closing';
     this.connection._sendMethod(this.channel, methods.channelClose,
                                 {'replyText': 'Goodbye from node',
@@ -1383,16 +1385,16 @@ function Queue (connection, channel, name, options, callback) {
 
   this.name = name;
   this.consumerTagListeners = {};
-  
+
   var self = this;
-  
+
   // route messages to subscribers based on consumerTag
   this.on('rawMessage', function(message) {
     if (message.consumerTag && self.consumerTagListeners[message.consumerTag]) {
       self.consumerTagListeners[message.consumerTag](message);
     }
   });
-  
+
   this.options = { autoDelete: true };
   if (options) mixin(this.options, options);
 
@@ -1571,7 +1573,7 @@ Queue.prototype.bind = function (/* [exchange,] routingKey [, bindCallback] */) 
         delete arguments[arguments.length-1];
         arguments.length--;
     }
-    
+
   if (arguments.length == 2) {
     exchange = arguments[0];
     routingKey = arguments[1];
@@ -1741,12 +1743,12 @@ Queue.prototype._onMethod = function (channel, method, args) {
       this.emit('error', e);
       this.emit('close');
       break;
-    
+
     case methods.channelCloseOk:
       this.connection.queueClosed(this.name);
       this.emit('close')
       break;
-    
+
     case methods.basicDeliver:
       this.currentMessage = new Message(this, args);
       break;
@@ -1788,6 +1790,12 @@ function Exchange (connection, channel, name, options, openCallback) {
   this.binds = 0; // keep track of queues bound
   this.options = options || { autoDelete: true};
   this._openCallback = openCallback;
+
+  var self = this;
+  this.connection.on('drain', function () {
+    self.state = 'open';
+    self._tasksFlush();
+  });
 }
 util.inherits(Exchange, Channel);
 
@@ -1809,7 +1817,7 @@ Exchange.prototype._onMethod = function (channel, method, args) {
         }
         // --
         this.emit('open');
-       
+
       } else {
         this.connection._sendMethod(channel, methods.exchangeDeclare,
             { reserved1:  0
@@ -1901,11 +1909,13 @@ Exchange.prototype.publish = function (routingKey, data, options) {
     // general streaming interface - streaming messages of unknown size simply
     // isn't possible with AMQP. This is all to say, don't send big messages.
     // If you need to stream something large, chunk it yourself.
-    self.connection._sendBody(self.channel, data, options);
+    var writeable = self.connection._sendBody(self.channel, data, options);
+
+    if (!writeable) self.state = 'closed';
   });
 };
 
-// do any necessary cleanups eg. after queue destruction  
+// do any necessary cleanups eg. after queue destruction
 Exchange.prototype.cleanup = function() {
 	if (this.binds == 0) // don't keep reference open if unused
     	this.connection.exchangeClosed(this.name);
