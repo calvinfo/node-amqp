@@ -356,7 +356,7 @@ function parseTable (buffer) {
   while (buffer.read < length) {
     table[parseShortString(buffer)] = parseValue(buffer);
   }
-  
+
   return table;
 }
 
@@ -867,7 +867,7 @@ function Connection (connectionArgs, options, readyCallback) {
     // state.
     parser = null;
   });
-  
+
   // in case of connection refused error
   self.addListener('error', function(e){
     self.end();
@@ -1249,6 +1249,11 @@ Connection.prototype.exchangeClosed = function (name) {
 Connection.prototype.exchange = function (name, options, openCallback) {
   if (name === undefined) name = this.implOptions.defaultExchangeName;
 
+  if (typeof options === 'function') {
+    openCallback = options;
+    options = null;
+  }
+
   if (!options) options = {};
   if (name != '' && options.type === undefined) options.type = 'topic';
 
@@ -1510,11 +1515,11 @@ Queue.prototype.subscribe = function (/* options, messageListener */) {
   var rawOptions = { noAck: !options.ack };
   return this.subscribeRaw(rawOptions, function (m) {
     var contentType = m.contentType;
-    
+
     if (contentType == null && m.headers && m.headers.properties) {
        contentType = m.headers.properties.content_type;
     }
-    
+
     var isJSON = (contentType == 'text/json') || (contentType == 'application/json');
 
     var b;
