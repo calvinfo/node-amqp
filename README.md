@@ -20,7 +20,6 @@ var connection = amqp.createConnection({ host: 'dev.rabbitmq.com' });
 
 // Wait for connection to become established.
 connection.on('ready', function () {
-  // Create a queue and bind to all messages.
   // Use the default 'amq.topic' exchange
   connection.queue('my-queue', function(q){
       // Catch all messages
@@ -163,7 +162,8 @@ Returns a reference to a queue. The options are
     using it. Last consumer can be cancelled either explicitly or because
     its channel is closed. If there was no consumer ever on the queue, it
     won't be deleted.
-
+- `arguments`: a map of additional arguments to pass in when creating a queue.
+- 
 ### queue.subscribe([options,] listener)
 
 An easy subscription command. It works like this
@@ -244,7 +244,17 @@ the unnamed exchange (see `defaultExchangeName` above).
 
 If the `exchange` argument is left out `'amq.topic'` will be used.
 
-This method will emit `'queueBindOk'` when ready.
+This method will emit `'queueBindOk'` when complete.
+
+
+### queue.unbind([exchange,] routing)
+
+This method unbinds a queue from an exchange.
+
+If the exchange argument is left out `'amq.topic'` will be used.
+
+Ths method will emit `'queueUnbindOk'` when complete.
+
 
 ### queue.bind_headers([exchange,] routing)
 
